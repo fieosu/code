@@ -95,7 +95,6 @@ def detect(page_text: str, reports_threshold: int | None = None) -> tuple[bool, 
 
     # 汇总各层结果（保留 Layer 1→2 的优先级，取最先命中的原因）
     logger.info("检测结果:")
-    SymbolTable
     for name, is_abnormal, reason in results:
         if is_abnormal:
             logger.info(f"  {name}: ❌ {reason}")
