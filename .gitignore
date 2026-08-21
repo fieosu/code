@@ -1,0 +1,19 @@
+# 运行时产物（见 CLAUDE.md "Runtime artifacts"）
+.browser_profile/
+capture.png
+capture_*.png
+monitor.log
+
+# 本机敏感配置（密钥不入库）
+config_local.py
+
+# 本机工具目录（第三方桌面客户端 node_modules 等，不入库）
+DSH-Desktop/
+.superpowers/
+
+# Python
+__pycache__/
+*.pyc
+
+# 本机设置
+.claude/settings.local.json
