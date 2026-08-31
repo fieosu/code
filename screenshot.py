@@ -17,15 +17,19 @@
 """
 
 import os
-import re
 import time
 from datetime import datetime
+from typing import Any, Iterator
 
 from patchright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 from PIL import Image
 
 import config
 from utils import logger
+
+# 捕获结果：成功 (截图路径, 页面文本|None)；失败返回 None
+# （CF 未通过/截图未写盘等失败一律返回 None 或抛异常，绝不返回"路径存在但内容不可信"的结果）
+CaptureResult = tuple[str | None, str | None]
 
 # 持久化浏览器配置目录：缓存 cf_clearance 等 cookie / localStorage
 BROWSER_PROFILE_DIR = os.path.join(
@@ -49,7 +53,7 @@ _CF_SELECTORS = [
 ]
 
 
-def _is_cloudflare_challenge(page) -> bool:
+def _is_cloudflare_challenge(page: Any) -> bool:
     """当前是否处于 Cloudflare 验证页。"""
     try:
         url = page.url or ""
@@ -69,7 +73,7 @@ def _is_cloudflare_challenge(page) -> bool:
     return False
 
 
-def _wait_for_clearance(page, timeout_s: int) -> bool:
+def _wait_for_clearance(page: Any, timeout_s: int) -> bool:
     """轮询等待 Cloudflare 挑战消失。返回是否已通过。"""
     deadline = time.monotonic() + timeout_s
     stable = 0
@@ -87,7 +91,7 @@ def _wait_for_clearance(page, timeout_s: int) -> bool:
     return not _is_cloudflare_challenge(page)
 
 
-def _try_click_turnstile(page) -> bool:
+def _try_click_turnstile(page: Any) -> bool:
     """
     尝试在 Turnstile iframe 内点击 checkbox（跳过"先等自动通过"的干等）。
 
@@ -130,7 +134,7 @@ def _tooltip_time(text: str):
         return None
 
 
-def _hover_chart_for_tooltip(page) -> float | None:
+def _hover_chart_for_tooltip(page: Any) -> float | None:
     """
     悬停图表，让 Recharts tooltip 渲染出报告数（人数）。
 
@@ -223,7 +227,7 @@ def _crop_screenshot(output_path: str, chart_bottom) -> None:
         logger.debug(f"截图裁剪失败（可忽略）: {e}")
 
 
-def _hide_fixed_ui(page) -> None:
+def _hide_fixed_ui(page: Any) -> None:
     """
     隐藏页面上的 position:fixed 浮层（吸顶导航、悬浮按钮、底部广告等）。
 
@@ -251,7 +255,14 @@ def _hide_fixed_ui(page) -> None:
         logger.debug(f"隐藏 fixed 浮层失败（可忽略）: {e}")
 
 
-def _capture_page(page, target, output_path, *, headless, want_text):
+def _capture_page(
+    page: Any,
+    url: str,
+    output_path: str,
+    *,
+    headless: bool,
+    want_text: bool,
+) -> CaptureResult | None:
     """
     在已打开的 page 上完成单个目标截图全流程：访问 → CF → 等渲染 → 悬停提取
     tooltip → 隐藏 fixed 浮层 → 截图 → 裁剪 → 取文本。
@@ -267,8 +278,8 @@ def _capture_page(page, target, output_path, *, headless, want_text):
     network_idle_timeout = getattr(config, "NETWORKIDLE_TIMEOUT", 10)
 
     try:
-        logger.info(f"正在访问 {target} (headless={headless}) ...")
-        page.goto(target, wait_until="domcontentloaded", timeout=60000)
+        logger.info(f"正在访问 {url} (headless={headless}) ...")
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
         if _is_cloudflare_challenge(page):
             logger.warning("检测到 Cloudflare 验证")
@@ -290,6 +301,10 @@ def _capture_page(page, target, output_path, *, headless, want_text):
                     logger.error(
                         "有头模式仍未通过 Cloudflare（可能网络异常或该站为交互式验证）"
                     )
+                    # CF 未通过意味着拿到的是挑战页而非真实页面：按失败处理。
+                    # 不能把挑战页截图当正常结果返回——挑战页文本不含关键词会被
+                    # 判"正常"并删图，站点就这样静默失守。
+                    return None
 
         # 等待页面渲染完成（超时按当前状态继续）
         try:
@@ -321,8 +336,11 @@ def _capture_page(page, target, output_path, *, headless, want_text):
         try:
             page.screenshot(path=output_path, full_page=config.SCREENSHOT_FULL_PAGE)
             _crop_screenshot(output_path, chart_bottom)
-        except Exception:
-            pass
+        except Exception as e:
+            # 截图失败不能仍返回路径：调用方会拿一个不存在的文件去推送，
+            # notify 读图时才 FileNotFoundError，告警丢失且重试白烧时间
+            logger.error(f"页面加载超时且截图失败: {e}")
+            return None
         text = None
         if want_text:
             try:
@@ -332,7 +350,13 @@ def _capture_page(page, target, output_path, *, headless, want_text):
         return output_path, text
 
 
-def _capture_once(target, output_path, *, headless, want_text):
+def _capture_once(
+    url: str,
+    output_path: str,
+    *,
+    headless: bool,
+    want_text: bool,
+) -> CaptureResult | None:
     """
     单站：启动一个持久化浏览器上下文完成一次截图。
 
@@ -355,26 +379,31 @@ def _capture_once(target, output_path, *, headless, want_text):
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            return _capture_page(page, target, output_path, headless=headless, want_text=want_text)
+            return _capture_page(page, url, output_path, headless=headless, want_text=want_text)
         finally:
             context.close()
 
 
-def _capture(target, output_path, *, want_text):
+def _capture(url: str, output_path: str, *, want_text: bool) -> CaptureResult:
     """默认直接走屏幕外有头（真实 Chromium 自动过托管型挑战，全程无感）。
 
     实测（2026-08-12）：cf_clearance 与获取它的浏览器指纹绑定，headless
     用不了有头缓存的 cookie，对本类站基本必被拦；headless 仅作调试用。
     """
     if getattr(config, "CF_FORCE_HEADLESS", False):
-        result = _capture_once(target, output_path, headless=True, want_text=want_text)
+        result = _capture_once(url, output_path, headless=True, want_text=want_text)
         if result is not None:
             return result
         logger.info("headless 未通过 Cloudflare，回退屏幕外有头")
-    return _capture_once(target, output_path, headless=False, want_text=want_text)
+    result = _capture_once(url, output_path, headless=False, want_text=want_text)
+    if result is None:
+        # 显式抛错而非 assert（assert 在 python -O 下会被剥掉）：失败要大声，
+        # 不能让 None 以"成功类型"流进 capture()/capture_with_text()
+        raise RuntimeError("有头模式未能通过 Cloudflare，单站捕获失败")
+    return result
 
 
-def capture(url: str = None, output_path: str = "capture.png") -> str:
+def capture(url: str | None = None, output_path: str = "capture.png") -> str | None:
     """
     截取指定网页。
 
@@ -383,26 +412,28 @@ def capture(url: str = None, output_path: str = "capture.png") -> str:
         output_path: 截图保存路径
 
     Returns:
-        截图文件的保存路径
+        截图文件的保存路径；截图失败返回 None
     """
     target = url or config.TARGET_URL
     path, _ = _capture(target, output_path, want_text=False)
     return path
 
 
-def capture_with_text(url: str = None, output_path: str = "capture.png") -> tuple[str, str]:
+def capture_with_text(
+    url: str | None = None, output_path: str = "capture.png"
+) -> tuple[str | None, str]:
     """
     截取网页并同时提取页面文本（供 Layer 1 检测用）。
 
     Returns:
-        (截图路径, 页面可见文本)
+        (截图路径, 页面可见文本)；截图失败时路径为 None
     """
     target = url or config.TARGET_URL
     path, text = _capture(target, output_path, want_text=True)
     return path, (text or "")
 
 
-def iter_captures(targets: list):
+def iter_captures(targets: list[config.Target]) -> Iterator[tuple[config.Target, str | None, str]]:
     """
     多站：启动一个持久化浏览器上下文，串行捕获目标，每站完成立即产出。
 
@@ -414,7 +445,7 @@ def iter_captures(targets: list):
     固定走屏幕外有头窗口（生产路径，与默认单站策略一致）。
 
     Args:
-        targets: 形如 [{"name": "amazon", "url": "..."}, ...] 的列表
+        targets: 监控目标列表（结构见 config.Target）
 
     Yields:
         逐个产出 (target, output_path|None, page_text|"")，失败项 output_path 为 None
@@ -442,6 +473,10 @@ def iter_captures(targets: list):
                 output_path = f"capture_{name}.png"
                 try:
                     result = _capture_page(page, t["url"], output_path, headless=False, want_text=True)
+                    if result is None:
+                        logger.error(f"[{name}] 捕获未返回结果，跳过检测")
+                        yield (t, None, "")
+                        continue
                     yield (t, result[0], result[1] or "")
                 except Exception as e:
                     logger.error(f"[{name}] 捕获失败: {e}")
@@ -450,7 +485,7 @@ def iter_captures(targets: list):
             context.close()
 
 
-def capture_all(targets: list) -> list:
+def capture_all(targets: list[config.Target]) -> list[tuple[str, str | None, str]]:
     """
     多站：串行捕获所有目标，攒齐后一次性返回（兼容接口）。
 

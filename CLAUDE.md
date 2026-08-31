@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A web-monitoring tool that periodically screenshots one or more target webpages, runs two-layer threshold detection (keywords + report count), and pushes an alert (with screenshot) to a chat webhook (WeCom / DingTalk / Feishu / generic). All behavior is configured through `config.py` — no other file needs editing to adapt it to a new target.
+A web-monitoring tool that periodically screenshots one or more target webpages, runs two-layer threshold detection (keywords + report count), and pushes an alert (with screenshot) to a WeCom (企业微信) bot webhook. All behavior is configured through `config.py` — no other file needs editing to adapt it to a new target.
 
 **Note:** code comments, `README_RUN.md`, and config are written in Chinese.
 
@@ -33,7 +33,7 @@ A single check (`monitor.py` → `run_once()`) is a three-stage pipeline:
 2. **Detect** (`detector.py`): `detect()` runs two layers in order and returns abnormal if **any** fires:
    - **Layer 1** — keyword match against `config.ERROR_KEYWORDS` in the page text (fast, precise).
    - **Layer 2** — report count (人数) from the chart tooltip exceeds `config.REPORTS_THRESHOLD`. The count only renders on hover: after capture, `screenshot.py` scans the chart (`config.CHART_SELECTOR`, `.recharts-wrapper`) from its right edge (data points shift as data updates, so a fixed hover position is unreliable) and selects the tooltip with the latest timestamp, so the Recharts tooltip's `Reports: N` lands in the extracted text; `check_by_reports()` parses it with `config.REPORTS_PATTERN`. Set `CHART_SELECTOR` empty (or `REPORTS_THRESHOLD` non-positive) to disable this layer.
-3. **Notify** (`notifier.py`): `notify()` dispatches to a sender via the `_SENDERS` dict keyed by `config.WEBHOOK_TYPE` (`wecom` / `dingtalk` / `feishu` / `generic`).
+3. **Notify** (`notifier.py`): `notify()` dispatches to a sender via the `_SENDERS` dict keyed by `config.WEBHOOK_TYPE` (only `wecom` is implemented).
 
 `utils.py` provides the shared `logger` (console + `monitor.log`) and a `retry` decorator that reads retry counts from config. `monitor.py` entry points: `--once` runs a single check, default is the infinite loop.
 
@@ -52,7 +52,7 @@ A single check (`monitor.py` → `run_once()`) is a three-stage pipeline:
 | Path | Purpose | Notes |
 |---|---|---|
 | `.browser_profile/` | CF cookie / localStorage cache | Don't delete |
-| `capture_<name>.png` | Current-round screenshot per site (e.g. `capture_amazon.png`) | Deleted after a normal round; kept only as the alert attachment when abnormal |
+| `capture_<name>.png` | Current-round screenshot per site (e.g. `capture_amazon.png`) | Deleted after a normal round; kept when abnormal, when page text was empty (alerted as suspicious), or when the push failed |
 | `monitor.log` | Run log | Safe to delete |
 
 To change what's monitored or alerted, edit `config.py` (`TARGETS` target list, check interval, `REPORTS_THRESHOLD`, keywords, webhook credentials) — nothing else. `TARGETS` empty falls back to single-site `TARGET_URL`.

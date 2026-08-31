@@ -1,3 +1,4 @@
+# 需要 Python >= 3.11（config.py 使用 typing.NotRequired，3.10 及以下 import 即报错）
 patchright>=1.0.0
 Pillow>=10.0.0
 requests>=2.31.0

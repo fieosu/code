@@ -29,7 +29,7 @@ if config.LOG_FILE:
     logger.addHandler(fh)
 
 
-def retry(max_retries: int = None, delay: int = None):
+def retry(max_retries: int | None = None, delay: int | None = None):
     """
     重试装饰器。
 
@@ -45,13 +45,16 @@ def retry(max_retries: int = None, delay: int = None):
         @wraps(func)
         def wrapper(*args, **kwargs):
             last_err = None
-            for attempt in range(1, _max + 1):
+            # _max <= 0（如 MAX_RETRIES=0 表示"不重试、只试一次"）时至少执行一次，
+            # 否则 range(1, 1) 为空、last_err 保持 None，raise None 会变成 TypeError
+            attempts = _max if _max >= 1 else 1
+            for attempt in range(1, attempts + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
                     last_err = e
-                    logger.warning(f"{func.__name__} 第 {attempt}/{_max} 次失败: {e}")
-                    if attempt < _max:
+                    logger.warning(f"{func.__name__} 第 {attempt}/{attempts} 次失败: {e}")
+                    if attempt < attempts:
                         sleep(_delay)
             raise last_err
         return wrapper

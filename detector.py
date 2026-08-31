@@ -8,7 +8,6 @@ Layer 2 : 报告数（人数）超过阈值（来自图表 tooltip）
 """
 
 import re
-from symtable import SymbolTable
 
 import config
 from utils import logger
@@ -83,7 +82,7 @@ def detect(page_text: str, reports_threshold: int | None = None) -> tuple[bool, 
     Returns:
         (是否异常, 异常原因)
     """
-    results = []
+    results: list[tuple[str, bool, str]] = []
 
     # Layer 1
     abnormal, reason = check_by_keywords(page_text)

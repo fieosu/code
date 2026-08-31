@@ -19,6 +19,8 @@ headless 任何变体都过不了（`cf_clearance` 与获取它的浏览器指�
 
 ## 二、安装依赖（在你本机执行一次）
 
+> 要求 **Python ≥ 3.11**（config.py 使用了 `typing.NotRequired`，3.10 及以下会在 import 时直接报错）。
+
 ```powershell
 # 1. 装 Python 依赖（已把 playwright 换成 patchright）
 pip install -r requirements.txt
@@ -74,7 +76,7 @@ CF_HEADED_TIMEOUT   = 120    # 有头模式下等 CF 自动通过的秒数
 | 路径 | 作用 | 能不能删 |
 |---|---|---|
 | `.browser_profile/` | 缓存 cf_clearance / cookie / localStorage | **不要删**，删了等于回到第一次，必弹验证 |
-| `capture_<name>.png` | 各站本轮截图 | 正常轮检测完即删；异常轮保留（即告警附件） |
+| `capture_<name>.png` | 各站本轮截图 | 正常轮检测完即删；异常轮、文本为空轮、推送失败轮保留（即告警附件/待查证据） |
 | `monitor.log` | 运行日志 | 可删 |
 
 ---

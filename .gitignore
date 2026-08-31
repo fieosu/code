@@ -17,3 +17,4 @@ __pycache__/
 
 # 本机设置
 .claude/settings.local.json
+*.md

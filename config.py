@@ -3,6 +3,16 @@
 修改本文件即可适配你的场景，无需动其他代码。
 """
 
+from typing import NotRequired, TypedDict
+
+
+class Target(TypedDict):
+    """监控目标：name 站点名、url 页面地址；reports_threshold 该站报告数阈值（可省略，用全局兜底）。"""
+    name: str
+    url: str
+    reports_threshold: NotRequired[int]
+
+
 # ──────────────────────────────────────────────
 # 监控目标
 # ──────────────────────────────────────────────
@@ -11,7 +21,7 @@
 #   url: 页面地址
 #   reports_threshold: 该站报告数阈值（省略时用下方全局 REPORTS_THRESHOLD；0 = 关闭该层）
 # 留空则回落单站模式（用下面的 TARGET_URL）。
-TARGETS = [
+TARGETS: list[Target] = [
     {"name": "rainbow-six", "url": "https://downdetector.com/status/rainbow-six/"},
     {"name": "escape-from-tarkov", "url": "https://downdetector.com/status/escape-from-tarkov/"},
     {"name": "battle-net", "url": "https://downdetector.com/status/battle-net/"},
@@ -46,7 +56,7 @@ CHECK_INTERVAL = 1800                         # 检查间隔（秒），默认 3
 # 每天 [QUIET_START, QUIET_END) 之间不巡检，其余时间照常。
 # 24 小时制 "HH:MM"。两个值设成相同（如 "00:00"/"00:00"）即关闭静默。
 # 也支持跨午夜区间（如 "22:00"~"06:00"）。
-QUIET_START = "00:00"                        # 静默开始：午夜 24:00
+QUIET_START = "00:00"                        # 静默开始：午夜 00:00（结束可用 "24:00" 表示午夜）
 QUIET_END = "09:00"                          # 静默结束：早上 09:00
 
 # ──────────────────────────────────────────────
@@ -88,25 +98,13 @@ REPORTS_THRESHOLD = 60                        # 报告数 ≥ 此值判异常；
                                           # 多站全局兜底值，各站可在 TARGETS 里用 reports_threshold 单独覆盖
 
 # ──────────────────────────────────────────────
-# 飞书 / 钉钉 / 企业微信 —— Webhook 推送
+# 企业微信 —— Webhook 推送
 # ──────────────────────────────────────────────
-# 三选一，不需要的留空
-WEBHOOK_TYPE = "wecom"                    # "feishu" / "dingtalk" / "wecom" / "generic"
+# 目前只支持企业微信机器人（图片 + 文字）。
+WEBHOOK_TYPE = "wecom"
 
-# 企业微信（默认）
-# 真实密钥放在被 .gitignore 忽略的 config_local.py 中（见文件末尾），勿直接写在这里。
+# 企微机器人 webhook key（真实密钥放在被 .gitignore 忽略的 config_local.py 中）
 WECOM_WEBHOOK_KEY = ""
-
-# 钉钉
-DINGTALK_WEBHOOK_URL = ""                  # 完整的 webhook URL（含 access_token）
-DINGTALK_SECRET = ""                       # 加签密钥（如果开启了加签）
-
-# 飞书
-FEISHU_WEBHOOK_URL = ""                    # 自定义机器人的 webhook URL
-FEISHU_SECRET = ""                         # 飞书加签密钥
-
-# 通用 Webhook（直接 POST JSON）
-GENERIC_WEBHOOK_URL = ""
 
 # ──────────────────────────────────────────────
 # 推送内容
@@ -135,7 +133,7 @@ CF_HEADED_TIMEOUT = 120                     # 有头模式等待 CF 自动通过
 # ──────────────────────────────────────────────
 # 本地敏感配置覆盖（不入库）
 # config_local.py 被 .gitignore 忽略，用于存放不该提交的密钥
-# （企微 webhook key、钉钉/飞书加签密钥等）。文件不存在时用上面的默认值。
+# （企微 webhook key 等）。文件不存在时用上面的默认值。
 # 把密钥写在 config_local.py 里，不要写在本文件上方。
 # ──────────────────────────────────────────────
 try:
