@@ -2,3 +2,5 @@
 patchright>=1.0.0
 Pillow>=10.0.0
 requests>=2.31.0
+# 仅打包 exe 时需要（build_exe.bat）；版本钉死避免新版本行为变化
+pyinstaller>=6.10,<7

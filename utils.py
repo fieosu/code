@@ -7,6 +7,7 @@ import sys
 from functools import wraps
 from time import sleep
 
+from bootstrap import app_path   # 须先于 config：frozen 时先完成路径引导
 import config
 
 # ──────────────────────────────────────────────
@@ -22,9 +23,11 @@ sh = logging.StreamHandler(sys.stdout)
 sh.setFormatter(fmt)
 logger.addHandler(sh)
 
-# 文件输出
+# 文件输出。相对路径锚定到应用目录：exe 被计划任务/双击启动时 CWD 不可控
+# （可能是 System32），日志必须落在 exe 旁而不是随机 CWD；
+# 源码模式下 app_path=脚本目录，行为不变；绝对路径配置原样保留。
 if config.LOG_FILE:
-    fh = logging.FileHandler(config.LOG_FILE, encoding="utf-8")
+    fh = logging.FileHandler(app_path(config.LOG_FILE), encoding="utf-8")
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 

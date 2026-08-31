@@ -10,8 +10,10 @@
 使用:
     python monitor.py              # 正常模式（每 CHECK_INTERVAL 秒巡检）
     python monitor.py --once       # 单次运行（调试用）
+    monitor.exe --once             # 打包后运行（用法相同，见 build_exe.bat）
 """
 
+import bootstrap   # 必须最先导入：冻结(exe)环境下先定位外置 config 与随包浏览器
 import argparse
 import os
 import sys

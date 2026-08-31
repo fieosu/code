@@ -16,11 +16,11 @@
 反而会留下可被检测的痕迹。
 """
 
-import os
 import time
 from datetime import datetime
 from typing import Any, Iterator
 
+from bootstrap import app_path   # 须先于 config：frozen 时先完成路径引导
 from patchright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 from PIL import Image
 
@@ -31,10 +31,10 @@ from utils import logger
 # （CF 未通过/截图未写盘等失败一律返回 None 或抛异常，绝不返回"路径存在但内容不可信"的结果）
 CaptureResult = tuple[str | None, str | None]
 
-# 持久化浏览器配置目录：缓存 cf_clearance 等 cookie / localStorage
-BROWSER_PROFILE_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), ".browser_profile"
-)
+# 持久化浏览器配置目录：缓存 cf_clearance 等 cookie / localStorage。
+# 锚定到应用目录：exe(onefile) 下 __file__ 是临时解包目录，profile 必须留在 exe 旁，
+# 否则 cookie 缓存每次运行都丢、每轮都被 Cloudflare 拦。
+BROWSER_PROFILE_DIR = app_path(".browser_profile")
 
 # Cloudflare 挑战页特征（命中任一即视为处于验证页）
 _CF_SELECTORS = [
@@ -416,7 +416,8 @@ def capture(url: str | None = None, output_path: str = "capture.png") -> str:
         截图文件的保存路径；失败（如 CF 未通过）抛异常
     """
     target = url or config.TARGET_URL
-    path, _ = _capture(target, output_path, want_text=False)
+    # 相对输出路径锚定到应用目录（exe 跑=exe 旁；源码跑=脚本目录；绝对路径原样保留）
+    path, _ = _capture(target, app_path(output_path), want_text=False)
     return path
 
 
@@ -430,7 +431,8 @@ def capture_with_text(
         (截图路径, 页面可见文本)；失败（如 CF 未通过）抛异常
     """
     target = url or config.TARGET_URL
-    path, text = _capture(target, output_path, want_text=True)
+    # 相对输出路径锚定到应用目录（同 capture）
+    path, text = _capture(target, app_path(output_path), want_text=True)
     return path, (text or "")
 
 
@@ -471,7 +473,8 @@ def iter_captures(targets: list[config.Target]) -> Iterator[tuple[config.Target,
         try:
             for t in targets:
                 name = t.get("name") or "site"
-                output_path = f"capture_{name}.png"
+                # 相对输出路径锚定到应用目录：exe 跑时 CWD 不可控，截图必须落在 exe 旁
+                output_path = app_path(f"capture_{name}.png")
                 try:
                     result = _capture_page(page, t["url"], output_path, headless=False, want_text=True)
                     if result is None:
