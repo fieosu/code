@@ -271,7 +271,8 @@ def _capture_page(
     上下文/页面串行调用本函数。
 
     Returns:
-        (output_path, text|None)；headless 下被 CF 拦截需回退有头时返回 None。
+        (output_path, text|None)；失败返回 None——包括 headless 下被 CF 拦截需回退、
+        有头模式下 CF 未通过、以及超时分支截图未写盘。文本拿不到时 text 为 None。
     """
     cf_headless_timeout = getattr(config, "CF_HEADLESS_TIMEOUT", 15)
     cf_headed_timeout = getattr(config, "CF_HEADED_TIMEOUT", 120)
@@ -403,7 +404,7 @@ def _capture(url: str, output_path: str, *, want_text: bool) -> CaptureResult:
     return result
 
 
-def capture(url: str | None = None, output_path: str = "capture.png") -> str | None:
+def capture(url: str | None = None, output_path: str = "capture.png") -> str:
     """
     截取指定网页。
 
@@ -412,7 +413,7 @@ def capture(url: str | None = None, output_path: str = "capture.png") -> str | N
         output_path: 截图保存路径
 
     Returns:
-        截图文件的保存路径；截图失败返回 None
+        截图文件的保存路径；失败（如 CF 未通过）抛异常
     """
     target = url or config.TARGET_URL
     path, _ = _capture(target, output_path, want_text=False)
@@ -421,12 +422,12 @@ def capture(url: str | None = None, output_path: str = "capture.png") -> str | N
 
 def capture_with_text(
     url: str | None = None, output_path: str = "capture.png"
-) -> tuple[str | None, str]:
+) -> tuple[str, str]:
     """
     截取网页并同时提取页面文本（供 Layer 1 检测用）。
 
     Returns:
-        (截图路径, 页面可见文本)；截图失败时路径为 None
+        (截图路径, 页面可见文本)；失败（如 CF 未通过）抛异常
     """
     target = url or config.TARGET_URL
     path, text = _capture(target, output_path, want_text=True)

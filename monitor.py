@@ -190,11 +190,12 @@ def _validate_targets(targets: list[config.Target]) -> None:
     """
     for t in targets:
         name = t.get("name") or ""
-        if not name or not t.get("url"):
+        url = t.get("url")
+        if not name or not url:
             logger.error(f"TARGETS 条目缺少 name/url 字段: {t}，请检查 config.py")
             sys.exit(1)
-        if not validate_url(t["url"]):
-            logger.error(f"URL 不合法: {t['url']}（目标 {name}），请检查 config.py")
+        if not isinstance(url, str) or not validate_url(url):
+            logger.error(f"URL 不合法: {url!r}（目标 {name}），请检查 config.py")
             sys.exit(1)
         th = t.get("reports_threshold")
         if th is not None and (isinstance(th, bool) or not isinstance(th, int) or th < 0):
